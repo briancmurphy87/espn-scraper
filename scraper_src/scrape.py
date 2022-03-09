@@ -48,10 +48,21 @@ def get_content_from_soup(_url):
     return soup.find('body').findAll('script')[0].text
 
 
-def get_roster_from_html(_espn_team_id, _is_mens_basketball):
+OTHER_SCHOOL_LOOKUPS = \
+    {
+        'Norfolk St.': 'Norfolk State'
+        , 'Central Florida': 'UCF'
+        , 'Washington St.': 'Washington State'
+        , 'Iowa St.': 'Iowa State'
+    }
+
+
+def get_roster_from_html(_school, _espn_team_id, _is_mens_basketball):
 
     espn_team_url = get_url_of_team(_espn_team_id, _is_mens_basketball)
     content = get_content_from_soup(espn_team_url)
+    school_lookup = _school if _school not in OTHER_SCHOOL_LOOKUPS else OTHER_SCHOOL_LOOKUPS[_school]
+    assert school_lookup in content
 
     # have text of html portion that contains roster
     # athletes roster is a list where each entry is a dict of a player's attributes
@@ -82,7 +93,7 @@ def basketball_descriptor(_is_mens):
 
 
 def csv_espn_team_mappings_descriptor():
-    return 'espn_team_mappings'
+    return 'espn_team_mappings.complete'
 
 
 def get_team_mappings_csv_file_name(_is_mens):
@@ -111,7 +122,7 @@ def do_scrape_for_school(_school, _espn_team_id, _is_mens_basketball):
     assert isinstance(_is_mens_basketball, bool)
 
     # get player roster
-    player_roster = get_roster_from_html(_espn_team_id, _is_mens_basketball)
+    player_roster = get_roster_from_html(_school, _espn_team_id, _is_mens_basketball)
     assert isinstance(player_roster, list)
 
     # build a data frame for this roster
@@ -129,7 +140,10 @@ def do_scrape_for_school(_school, _espn_team_id, _is_mens_basketball):
         # add player entry into output data frame
         df_entry = dict()
         for key in html_roster_keys:
-            if key not in player_entry:
+            key_not_found = key not in player_entry
+            if key_not_found and key == 'jersey':
+                df_entry['key'] = '0'
+            elif key_not_found:
                 # assert key in ["birthPlace", "jersey", "height", "weight"], key
                 assert key in ["birthPlace", "height", "weight"], key
             else:
@@ -139,7 +153,7 @@ def do_scrape_for_school(_school, _espn_team_id, _is_mens_basketball):
     # end: outer for
 
     # reasonable bounds on roster size
-    assert 8 <= len(df_entries) <= 19, len(df_entries)
+    assert 8 <= len(df_entries) <= 22, len(df_entries)
 
     # finally, init data frame
     df = pd.DataFrame(df_entries)[html_roster_keys]
@@ -166,25 +180,41 @@ def do_scrape(_is_mens_basketball):
 
     # read team mappings
     team_mappings_file_name = get_team_mappings_csv_file_name(_is_mens_basketball)
-    team_mappings_file_path = '{}.csv'.format(team_mappings_file_name)
+    team_mappings_file_path = '{}.xlsx'.format(team_mappings_file_name)
 
-    team_mappings_df = pd.read_csv(team_mappings_file_path)
+    # TODO: DEBUG: EXPERIMENTAL
+    team_mappings_df = pd.read_excel(team_mappings_file_path, engine=excel_writer_engine(), sheet_name='bracket-flat')
     assert isinstance(team_mappings_df, pd.DataFrame)
     assert not team_mappings_df.empty
-    team_mappings_df['EspnID'] = team_mappings_df['EspnID'].astype(int)
+
+    col_header_school = 'SCHOOL'
+    col_header_espn_id = 'FINAL ID'
+
+    # TODO: when i was using the top 25 rankings
+    # team_mappings_df = pd.read_csv(team_mappings_file_path)
+    # assert isinstance(team_mappings_df, pd.DataFrame)
+    # assert not team_mappings_df.empty
+    # team_mappings_df['EspnID'] = team_mappings_df['EspnID'].astype(int)
 
     # index entries from mappings to test
-    start_index = 0
-    finish_index = 24
+    start_index = 22
+    finish_index = 32
     current_index = start_index
     while current_index <= finish_index:
-        school = team_mappings_df.iloc[current_index]['School']
+        school = team_mappings_df.iloc[current_index][col_header_school]
         school = school.strip()
 
-        espn_id = team_mappings_df.iloc[current_index]['EspnID']
-        assert np.issubdtype(espn_id, np.integer)
+        espn_id = team_mappings_df.iloc[current_index][col_header_espn_id]
+        if isinstance(espn_id, str):
+            assert espn_id.strip().lower() == 'dne'
+            print("SKIP: current_index[{}] school[{}] espn_id[{}]".format(current_index, school, espn_id))
+            current_index += 1
+            continue
+
+        if not isinstance(espn_id, int):
+            assert np.issubdtype(espn_id, np.integer)
+            espn_id = int(espn_id)
         assert espn_id > 0
-        espn_id = int(espn_id)
 
         print("current_index[{}] school[{}] espn_id[{}]".format(current_index, school, espn_id))
 
@@ -232,5 +262,5 @@ def consolidate_all_rosters(_is_mens_basketball):
 
 if __name__ == '__main__':
     is_mens_basketball = False
-    # do_scrape(is_mens)
-    consolidate_all_rosters(is_mens_basketball)
+    do_scrape(is_mens_basketball)
+    # consolidate_all_rosters(is_mens_basketball)
