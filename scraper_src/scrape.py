@@ -54,6 +54,13 @@ OTHER_SCHOOL_LOOKUPS = \
         , 'Central Florida': 'UCF'
         , 'Washington St.': 'Washington State'
         , 'Iowa St.': 'Iowa State'
+        , 'Ohio St.': 'Ohio State'
+        , 'Missouri St.': 'Missouri State'
+        , 'Kansas St.': 'Kansas State'
+        , 'Idaho St.': 'Idaho State'
+        , 'Florida St.': 'Florida State'
+        , 'Jackson St.': 'Jackson State'
+        , 'Hawaii': "Hawai'i"
     }
 
 
@@ -197,8 +204,8 @@ def do_scrape(_is_mens_basketball):
     # team_mappings_df['EspnID'] = team_mappings_df['EspnID'].astype(int)
 
     # index entries from mappings to test
-    start_index = 22
-    finish_index = 32
+    start_index = 51
+    finish_index = 66
     current_index = start_index
     while current_index <= finish_index:
         school = team_mappings_df.iloc[current_index][col_header_school]
